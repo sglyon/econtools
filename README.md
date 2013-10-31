@@ -1,4 +1,6 @@
 econtools
 =========
 
-Collection of programming tools we gathered in first year PhD courses.
+Collection of programming tools gathered in first year PhD courses.
+
+*Authors* : Spencer Lyon

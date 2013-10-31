@@ -16,7 +16,7 @@ __all__ = ['iv2sls', 'bootstrap', 'wald']
 
 def iv2sls(form, data, instruments=None):
     """
-    Perform instrumental variables two-state least squares regression.
+    Perform instrumental variables two-stage least squares regression.
 
     As an example in this docstring imagine we wish to estimate the
     model given by

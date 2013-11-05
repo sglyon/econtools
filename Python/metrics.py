@@ -54,15 +54,18 @@ def iv2sls(form, data, instruments=None):
         The statsmodels fit object corresponding to the instrumental
         variables two-stage least squares estimator for the model.
 
-    TODO: Add correction for standard errors and t-stat/p-value
+    TODO:
+        - Add correction for standard errors and t-stat/p-value
+            The corrected standard error is: (X' M_Z X)^{-1}
+            \sum\frac{(y - x \hat{\beta})^2}{n-k} (X'Z(Z'Z)^{-1}Z'X)^{-1}
 
     """
     end_reg, inst = instruments
-    exog, endog = form.split("~")
+    endog, exog = form.split("~")
     s2_form = form
 
     for i in end_reg:
-        s1_form = i + ' ~ ' + endog.replace(i, " + ".join(inst))
+        s1_form = i + ' ~ ' + exog.replace(i, " + ".join(inst))
         s1_fit = sm.ols(s1_form, data=data).fit()
         pred_name = 'inst_%s' % (i)
         data[pred_name] = s1_fit.predict()
@@ -144,3 +147,61 @@ def wald(s, res):
     print(msg % (s, t.tvalue, t.pvalue))
 
     return t.tvalue, t.pvalue
+
+
+def wu_test(form, data, variable):
+    """
+    Perform the Wu endogeneity test. This test is carried out in 3
+    steps:
+
+    1. Regress the variable in question on all other exogenous variables
+    2. Add the residuals from the aforementioned regression to the main
+       model
+    3. Examine the p-value associated with the residual term from the
+       updated model from part 2. A statistically significant coeff
+       indicates that the tested variable is indeed endogenous.
+
+    Parameters
+    ==========
+    form : str
+        The statsmodels (patsy) formula for the model
+
+    data : pandas.DataFrame
+        The pandas DataFrame holding the data for the regression
+
+    variable : str
+        The string naming the variable (column) for which to perform
+        the test
+
+    Returns
+    =======
+    fit : statsmodels.regression.linear_model.RegressionResultsWrapper
+        The statsmodels fit object associated with the Wu test.
+    """
+    endog, exog = form.split("~")
+    s2_form = form
+
+    o_exog = map(str.strip, exog.split('+'))
+    o_exog.remove(variable)
+
+    s1_form = variable + ' ~ ' + " + ".join(o_exog)
+    s1_fit = sm.ols(s1_form, data=data).fit()
+    res_name = 'resid_%s' % (variable)
+    data[res_name] = s1_fit.resid
+    s2_form += " + %s" % (res_name)
+
+    fit = sm.ols(s2_form, data=data).fit()
+
+    p_val = fit.pvalues['resid_EXP']
+    endog_bool = 'not' if p_val >= 0.05 else 'is'
+    msg = "WU TEST: The p_value of the added residual is %.4e"
+    msg += "\n\t This %s significant at the alpha=0.05 level\n\n"
+    print(msg % (p_val, endog_bool))
+
+    return fit
+
+
+def cluster_se(fit, gp_name):
+    from statsmodels.stats.sandwich_covariance import cov_cluster
+    grp = fit.model.data.frame[gp_name]
+    se = np.diag(cov_cluster(fit, grp)) ** (1/2.)

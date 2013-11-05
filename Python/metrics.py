@@ -13,7 +13,7 @@ import statsmodels.formula.api as sm
 from scipy import stats
 
 
-__all__ = ['iv2sls', 'bootstrap', 'wald']
+__all__ = ['iv2sls', 'bootstrap', 'wald', "wu_test", 'cluster_se']
 
 
 def iv2sls(form, data, instruments=None):

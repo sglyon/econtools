@@ -10,6 +10,7 @@ import numpy as np
 import numpy.linalg as la
 import pandas as pd
 import statsmodels.formula.api as sm
+from scipy import stats
 
 
 __all__ = ['iv2sls', 'bootstrap', 'wald']
@@ -55,18 +56,24 @@ def iv2sls(form, data, instruments=None):
         The statsmodels fit object corresponding to the instrumental
         variables two-stage least squares estimator for the model.
 
-    TODO:
-        - Add correction for standard errors and t-stat/p-value
-            The corrected standard error is: (X' M_Z X)^{-1}
-            \sum\frac{(y - x \hat{\beta})^2}{n-k} (X'Z(Z'Z)^{-1}Z'X)^{-1}
+    correct_se : pd.DataFrame
+        A pandas Series with the correct standard errors, t-statistics,
+        and p-values
+
+    Notes
+    =====
+    Note that if you ask for the printout of fit, the standard errors,
+    t statistics, and p-vales will all be incorrect. They should instead
+    be based on the
 
     """
     end_reg, inst = instruments
     endog, exog = form.split("~")
     s2_form = form
     z_form = endog + ' ~ ' + " + ".join(inst)
-    for i in exog and i not in end_reg:
-        z_form = z_form + " + " + i
+    for i in map(str.strip, exog.split("+")):
+        if i not in end_reg:
+            z_form = z_form + " + " + i
 
     for i in end_reg:
         s1_form = i + ' ~ ' + exog.replace(i, " + ".join(inst))
@@ -78,11 +85,19 @@ def iv2sls(form, data, instruments=None):
     fit = sm.ols(s2_form, data=data).fit()
 
     X = sm.ols(form, data=data).data.exog
-    Z = sm.ols(s2_form, data=data).data.exog
+    Z = sm.ols(z_form, data=data).data.exog
 
-    correct_se = la.inv((X.T.dot(Z).dot(la.inv(np.dot(Z.T, Z)).dot(Z.T).dot(X))))
+    good_var = la.inv((X.T.dot(Z).dot(la.inv(np.dot(Z.T, Z)).dot(Z.T).dot(X))))
+    good_se = np.diag(good_var)
+    t_values = fit.params / good_se
+    p_values = stats.t.sf(np.abs(t_values), fit.df_resid) * 2
 
-    return fit, correct_se
+    good_table = pd.DataFrame({'Standard Errors': good_se,
+                               't': t_values,
+                               'P>|t|': p_values},
+                              index=fit.params.index)
+
+    return fit, good_table
 
 
 def bootstrap(fit, reps=100):

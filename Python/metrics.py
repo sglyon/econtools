@@ -7,6 +7,7 @@ Various tools useful for doing standard econometric analysis.
 
 """
 import numpy as np
+import numpy.linalg as la
 import pandas as pd
 import statsmodels.formula.api as sm
 
@@ -63,6 +64,9 @@ def iv2sls(form, data, instruments=None):
     end_reg, inst = instruments
     endog, exog = form.split("~")
     s2_form = form
+    z_form = endog + ' ~ ' + " + ".join(inst)
+    for i in exog and i not in end_reg:
+        z_form = z_form + " + " + i
 
     for i in end_reg:
         s1_form = i + ' ~ ' + exog.replace(i, " + ".join(inst))
@@ -73,7 +77,12 @@ def iv2sls(form, data, instruments=None):
 
     fit = sm.ols(s2_form, data=data).fit()
 
-    return fit
+    X = sm.ols(form, data=data).data.exog
+    Z = sm.ols(s2_form, data=data).data.exog
+
+    correct_se = la.inv((X.T.dot(Z).dot(la.inv(np.dot(Z.T, Z)).dot(Z.T).dot(X))))
+
+    return fit, correct_se
 
 
 def bootstrap(fit, reps=100):

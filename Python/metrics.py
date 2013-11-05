@@ -202,6 +202,27 @@ def wu_test(form, data, variable):
 
 
 def cluster_se(fit, gp_name):
+    """
+    Compute robust "clustered" standard errors.
+
+    Parameters
+    ==========
+    fit : statsmodels.regression.linear_model.RegressionResultsWrapper
+        The statsmodels fit object obtained from the original regression
+
+    gp_name : str
+        The name of the group on which the clustering should happen.
+        This needs to be the name of a column in the original DataFrame
+        used to create and fit the model.
+
+    Returns
+    =======
+    ser : pd.Series
+        A pandas Series with the variable names and robust standard
+        errors.
+
+    """
     from statsmodels.stats.sandwich_covariance import cov_cluster
     grp = fit.model.data.frame[gp_name]
     se = np.diag(cov_cluster(fit, grp)) ** (1/2.)
+    return pd.Series(se, index=fit.params.index)
